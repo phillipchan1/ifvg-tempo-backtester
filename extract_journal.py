@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 from dotenv import load_dotenv
 from openai import AzureOpenAI
+from dateutil import parser as date_parser
 
 import market_metrics
 
@@ -239,10 +240,13 @@ def extract_date_from_filename(filename: str) -> Optional[str]:
     """
     Extract date from filename as fallback when Date_of_Trade is missing.
     
-    Supports formats:
+    Uses intelligent date parsing to handle various formats:
     - 2025-12-04_11-58-48 → 2025-12-04
-    - 2025-9-12 → 2025-09-12 (normalize to YYYY-MM-DD)
-    - 2020-12-04 → 2020-12-04
+    - 2025-9-12 → 2025-09-12
+    - Aug 1 2025 Video → 2025-08-01
+    - Sept 2 2025 Video → 2025-09-02
+    - Video Aug 20 → 2025-08-20 (assumes current year if year missing)
+    - 2025-08-06_11-10-05 → 2025-08-06
     
     Args:
         filename: Filename (with or without extension)
@@ -253,13 +257,80 @@ def extract_date_from_filename(filename: str) -> Optional[str]:
     # Remove extension if present
     stem = Path(filename).stem
     
-    # Try to extract date from various formats
-    # Format 1: YYYY-MM-DD_HH-MM-SS
-    match = re.match(r'(\d{4})-(\d{1,2})-(\d{1,2})', stem)
-    if match:
-        year, month, day = match.groups()
-        # Normalize to YYYY-MM-DD
-        return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+    # Strategy 1: Try regex patterns for common date formats first (faster)
+    date_patterns = [
+        # YYYY-MM-DD or YYYY-M-DD or YYYY-MM-D
+        (r'(\d{4})-(\d{1,2})-(\d{1,2})', lambda m: f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"),
+        # MM-DD-YYYY
+        (r'(\d{1,2})-(\d{1,2})-(\d{4})', lambda m: f"{m.group(3)}-{m.group(1).zfill(2)}-{m.group(2).zfill(2)}"),
+    ]
+    
+    for pattern, formatter in date_patterns:
+        match = re.search(pattern, stem)
+        if match:
+            try:
+                return formatter(match)
+            except:
+                continue
+    
+    # Strategy 2: Use dateutil parser for fuzzy date extraction (handles "Aug 1 2025", "Sept 2 2025", etc.)
+    try:
+        from datetime import datetime
+        
+        # First, try to find month-day patterns explicitly (e.g., "Aug 20", "Sept 2")
+        month_day_pattern = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})', stem, re.IGNORECASE)
+        if month_day_pattern:
+            month_str = month_day_pattern.group(1).lower()
+            day = int(month_day_pattern.group(2))
+            
+            # Map month abbreviations
+            month_map = {
+                'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+                'jul': 7, 'aug': 8, 'sep': 9, 'sept': 9, 'oct': 10, 'nov': 11, 'dec': 12
+            }
+            
+            month = month_map.get(month_str[:3], None)
+            if month and 1 <= day <= 31:
+                # Check if year is present in filename
+                year_match = re.search(r'(20\d{2})', stem)
+                year = int(year_match.group(1)) if year_match else 2025  # Default to 2025
+                return f"{year}-{month:02d}-{day:02d}"
+        
+        # Try to find date-like strings in the filename
+        # Look for patterns that might contain dates
+        words = re.split(r'[\s_\-\.]+', stem)
+        
+        # Try parsing different combinations
+        for i in range(len(words)):
+            for j in range(i+1, min(i+4, len(words)+1)):
+                test_str = ' '.join(words[i:j])
+                if len(test_str) >= 6:  # Minimum length for a date
+                    try:
+                        # Use fuzzy parsing - it's smart about extracting dates from text
+                        # Default to 2025 if year is missing
+                        parsed_date = date_parser.parse(test_str, fuzzy=True, default=datetime(2025, 1, 1))
+                        if parsed_date:
+                            # Only accept dates that seem reasonable
+                            # Check if it found a year (or use default year)
+                            year = parsed_date.year
+                            if year >= 2020 and year <= 2030:
+                                return parsed_date.strftime('%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        continue
+        
+        # If no date found in parts, try parsing the whole stem
+        try:
+            parsed_date = date_parser.parse(stem, fuzzy=True, default=datetime(2025, 1, 1))
+            if parsed_date:
+                year = parsed_date.year
+                if year >= 2020 and year <= 2030:
+                    return parsed_date.strftime('%Y-%m-%d')
+        except (ValueError, TypeError):
+            pass
+            
+    except Exception as e:
+        # If dateutil parsing fails, fall back to None
+        pass
     
     return None
 

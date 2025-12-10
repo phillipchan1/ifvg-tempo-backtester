@@ -27,6 +27,7 @@ This tool automates the extraction of trading data from video transcripts, struc
 
 ## Features
 
+- **Concurrent Processing**: Processes 2 transcript files simultaneously for faster execution
 - **Intelligent Date Extraction**: Automatically extracts trade dates from filenames when not explicitly stated in transcripts
 - **Common-Sense Validation**: Validates PnL points using gap size logic (IFVG gaps are typically 5-25 points)
 - **Multi-Asset Support**: Handles NQ, ES, and GC futures contracts

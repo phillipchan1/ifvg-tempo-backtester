@@ -12,6 +12,7 @@ import json
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -361,21 +362,47 @@ def main():
         return
     
     print(f"✓ Found {len(txt_files)} transcript file(s)")
+    print(f"Processing {min(2, len(txt_files))} files concurrently...")
     print()
     
-    # Process each file
+    # Process files concurrently (2 at a time)
     all_trades = []
     
-    for file_path in sorted(txt_files):
-        print(f"Processing: {file_path.name}...")
+    def process_file_wrapper(file_path):
+        """Wrapper function for concurrent processing."""
+        try:
+            trades = process_transcript_file(client, deployment, file_path)
+            return file_path.name, trades, None
+        except Exception as e:
+            return file_path.name, [], str(e)
+    
+    # Use ThreadPoolExecutor to process 2 files concurrently
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        # Submit all files for processing
+        future_to_file = {
+            executor.submit(process_file_wrapper, file_path): file_path 
+            for file_path in sorted(txt_files)
+        }
         
-        trades = process_transcript_file(client, deployment, file_path)
-        
-        if trades:
-            print(f"  ✓ Extracted {len(trades)} trade(s)")
-            all_trades.extend(trades)
-        else:
-            print(f"  ⚠ No trades extracted")
+        # Process completed tasks as they finish
+        for future in as_completed(future_to_file):
+            file_path = future_to_file[future]
+            try:
+                filename, trades, error = future.result()
+                
+                if error:
+                    print(f"Processing: {filename}...")
+                    print(f"  ✗ Error: {error}")
+                elif trades:
+                    print(f"Processing: {filename}...")
+                    print(f"  ✓ Extracted {len(trades)} trade(s)")
+                    all_trades.extend(trades)
+                else:
+                    print(f"Processing: {filename}...")
+                    print(f"  ⚠ No trades extracted")
+            except Exception as e:
+                print(f"Processing: {file_path.name}...")
+                print(f"  ✗ Unexpected error: {e}")
     
     print()
     

@@ -42,6 +42,9 @@ wheels/
 # Output files
 trade_journal_master.csv
 *.csv
+# Track market/input CSVs under data/
+!data/
+!data/**/*.csv
 
 # OS
 .DS_Store

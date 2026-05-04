@@ -1,0 +1,22 @@
+version: v001
+name: IFVG baseline entry model
+narrative_tags:
+  - ny-session
+  - liquidity-sweep
+  - displacement
+setup_requirements:
+  - Initial liquidity sweep must occur before IFVG inversion trigger.
+  - Entry only during pre-defined session windows.
+  - HTF bias aligned with execution timeframe.
+invalidation_rules:
+  - Skip if sweep is ambiguous or unresolved.
+  - Skip if no displacement confirms intent.
+execution_rules:
+  - Enter on IFVG inversion confirmation.
+  - Define stop beyond invalidation level.
+  - Scale only if narrative remains intact.
+risk_rules:
+  - Fixed risk per trade (1R).
+  - Daily max drawdown lockout.
+  - No revenge trades after lockout.
+notes: Initial baseline created from transcript-derived process.

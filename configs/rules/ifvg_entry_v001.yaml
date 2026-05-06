@@ -1,22 +1,280 @@
 version: v001
-name: IFVG baseline entry model
+name: IFVG A+ reversal model — first rigorous spec
 narrative_tags:
-  - ny-session
+  - ny-killzone
   - liquidity-sweep
-  - displacement
-setup_requirements:
-  - Initial liquidity sweep must occur before IFVG inversion trigger.
-  - Entry only during pre-defined session windows.
-  - HTF bias aligned with execution timeframe.
-invalidation_rules:
-  - Skip if sweep is ambiguous or unresolved.
-  - Skip if no displacement confirms intent.
-execution_rules:
-  - Enter on IFVG inversion confirmation.
-  - Define stop beyond invalidation level.
-  - Scale only if narrative remains intact.
-risk_rules:
-  - Fixed risk per trade (1R).
-  - Daily max drawdown lockout.
-  - No revenge trades after lockout.
-notes: Initial baseline created from transcript-derived process.
+  - inverse-fvg
+  - reversal
+
+rules:
+  - id: R01_session_window
+    category: session
+    description: >
+      Sweep AND inversion-trigger candles must both close inside this US/Eastern
+      window. Setups straddling the boundary are invalid.
+    hypothesis: >
+      09:30–11:00 ET (NY killzone) captures the highest-expectancy reversal-after-sweep
+      window; later than 11:00 the move tends to chop.
+    default: ["09:30", "11:00"]
+    permutation_space:
+      - ["09:30", "10:00"]
+      - ["09:30", "10:30"]
+      - ["09:30", "11:00"]
+      - ["09:30", "12:00"]
+      - ["10:00", "11:30"]
+
+  - id: R02_bias_reference_range
+    category: bias
+    description: >
+      Reference range whose 50% midpoint defines premium vs discount.
+      Above 50% → premium → SHORTS only. Below 50% → discount → LONGS only.
+    hypothesis: >
+      Prior-day range midpoint is the most stable and widely-watched bias filter
+      for NY killzone reversals (matches the TradingView "Dynamic 50% Line").
+    default: prior_day
+    permutation_space:
+      - prior_day
+      - current_session
+      - prior_week
+      - last_24h
+
+  - id: R03_liquidity_target
+    category: sweep
+    description: >
+      Which liquidity level(s) qualify as a valid sweep target. A setup needs at
+      least one of these to be swept (per R04) before the trigger.
+    hypothesis: >
+      London H/L and prior-day H/L are the most reliable liquidity pools for the
+      9:30 ET reversal — Asia is too stale, intraday swings are too noisy.
+    default: [london_high_low, prior_day_high_low]
+    permutation_space:
+      - [asia_high_low]
+      - [london_high_low]
+      - [prior_day_high_low]
+      - [london_high_low, prior_day_high_low]
+      - [prior_session_swing]
+      - [htf_fvg_4h]
+      - [htf_fvg_1h]
+
+  - id: R04_sweep_validity
+    category: sweep
+    description: >
+      How price must interact with the level for a sweep to count.
+      "first_touch" = first session bar where price reaches the level (wick OR close).
+      We treat "swept" and "broken" identically — whether the candle reverses or breaks
+      through is irrelevant at sweep time. The R09 inversion trigger does the real
+      reversal filtering.
+    hypothesis: >
+      Filtering on the sweep candle's reversal is double-counting: the inversion close
+      already encodes "price reversed." Demanding it twice over-fits to specific candle
+      shapes and discards real setups that reverse a few candles after first touch.
+    default: first_touch
+    permutation_space:
+      - first_touch
+      - wick_only_with_reversal
+      - close_through_then_reclaim
+
+  - id: R05_fvg_definition
+    category: fvg
+    description: >
+      Standard 3-candle FVG.
+      Bullish FVG: candle[i-2].high < candle[i].low (gap = [c[i-2].high, c[i].low]).
+      Bearish FVG: candle[i-2].low  > candle[i].high (gap = [c[i].high, c[i-2].low]).
+      Middle candle (i-1) is the displacement leg.
+    hypothesis: >
+      Wick-based FVG is the canonical ICT definition. Body-based FVG and
+      displacement-strength filters trade sample size for setup quality.
+    default: wick_fvg
+    permutation_space:
+      - wick_fvg
+      - body_fvg
+      - wick_fvg_with_displacement_strength
+
+  - id: R06_target_gap_size_points
+    category: fvg
+    description: >
+      Acceptable size of the target gap in instrument points (NQ defaults).
+      Gaps outside this band disqualify the setup.
+    hypothesis: >
+      7–20 point gaps on NQ are large enough to matter structurally but small
+      enough to invert quickly inside the killzone.
+    default: [7, 20]
+    permutation_space:
+      - [3, 7]
+      - [7, 12]
+      - [12, 20]
+      - [20, 50]
+      - [3, 50]   # control: any size
+
+  - id: R07_target_gap_selection
+    category: target_selection
+    description: |
+      Picks WHICH gap to "watch" for inversion after the sweep.
+
+      Eligible gaps (universal hard filters):
+        - opposite-direction unfilled FVG between current price and swept level
+          (SHORT setup → bullish FVGs below price; LONG setup → bearish FVGs above)
+        - size in R06 band
+        - formed within `eligibility_lookback_bars` of the sweep ("rally context")
+        - near edge within `eligibility_proximity_points` of the swept level
+
+      Selection (after eligibility filter):
+        - 0 eligible gaps           → SKIP
+        - 1 gap                     → take it
+        - 2 gaps                    → target = `target_when_multiple` (default: most_recent)
+        - more than `max_gaps`      → SKIP ("too many speed bumps")
+
+      Mental model: each unfilled gap is a speed bump. 1–2 bumps = clean.
+      3+ in the immediate rally context = dirty setup, skip.
+    hypothesis: >
+      Cleaner setups (1–2 recent, near-the-sweep gaps) reverse with less
+      retracement and higher follow-through.
+    default:
+      max_gaps: 2
+      eligibility_lookback_bars: 30
+      eligibility_proximity_points: 50
+      target_when_multiple: most_recent
+    permutation_space:
+      - { max_gaps: 1, eligibility_lookback_bars: 30, eligibility_proximity_points: 50, target_when_multiple: most_recent }
+      - { max_gaps: 2, eligibility_lookback_bars: 30, eligibility_proximity_points: 50, target_when_multiple: most_recent }
+      - { max_gaps: 2, eligibility_lookback_bars: 60, eligibility_proximity_points: 50, target_when_multiple: most_recent }
+      - { max_gaps: 2, eligibility_lookback_bars: 30, eligibility_proximity_points: 30, target_when_multiple: most_recent }
+      - { max_gaps: 2, eligibility_lookback_bars: 30, eligibility_proximity_points: 75, target_when_multiple: most_recent }
+      - { max_gaps: 3, eligibility_lookback_bars: 60, eligibility_proximity_points: 75, target_when_multiple: most_recent }
+      - { max_gaps: 2, eligibility_lookback_bars: 30, eligibility_proximity_points: 50, target_when_multiple: closest_to_swept_level }
+
+  - id: R08_time_to_inversion_candles
+    category: trigger
+    description: >
+      Max number of candles allowed between the sweep candle and the inversion-
+      trigger candle. Beyond this, the setup expires and the engine resets.
+    hypothesis: >
+      "No stalling" — fast inversion signals strong reversal intent. Slow
+      inversions are usually grind/chop. 10 bars (10 min on 1m) gives enough
+      room for a real reversal to form without admitting drifting setups.
+    default: 10
+    permutation_space: [3, 5, 10, 15, 20]
+
+  - id: R09_inversion_trigger
+    category: trigger
+    description: |
+      What constitutes "inverting" the target gap.
+      Short setup: candle CLOSES below target_gap.low.
+      Long setup:  candle CLOSES above target_gap.high.
+      Body-pct variants additionally require body / range ≥ threshold.
+    hypothesis: >
+      A close-through is the minimum signal. Body-strength filters approximate
+      the chart's "strong momentum close" rule and should improve win-rate at
+      the cost of sample size.
+    default: close_through
+    permutation_space:
+      - wick_through
+      - close_through
+      - close_through_body_pct_50
+      - close_through_body_pct_70
+
+  - id: R10_entry_execution
+    category: execution
+    description: How and when the order fills once the trigger condition is met.
+    hypothesis: >
+      Market on close of the inversion candle is simplest and most reproducible
+      in backtest. Limit at gap mid is the most aggressive (better avg price,
+      worse fill rate).
+    default: market_on_inversion_close
+    permutation_space:
+      - market_on_inversion_close
+      - market_on_next_candle_open
+      - limit_at_gap_mid
+
+  - id: R11_stop_loss
+    category: risk
+    description: |
+      Absolute stop-loss level. R per trade is intentionally variable
+      (gap-size dependent).
+
+        Short: stop = target_gap.high + buffer_points
+        Long:  stop = target_gap.low  − buffer_points
+        R     = |stop − entry|
+
+    hypothesis: >
+      The far edge of the inverted gap is the structural invalidation point.
+      A small buffer absorbs noise without materially hurting R.
+    default:
+      buffer_points: 5
+    permutation_space:
+      - { buffer_points: 0 }
+      - { buffer_points: 5 }
+      - { buffer_points: 10 }
+      - { buffer_points: 15 }
+
+  - id: R12_take_profit
+    category: trade_management
+    description: Profit-taking and trade-management policy.
+    hypothesis: >
+      1R is the cleanest baseline for evaluating raw signal quality. Runners
+      capture fat tails when momentum continues into a clear swing.
+    default: full_at_1R
+    permutation_space:
+      - full_at_1R
+      - full_at_2R
+      - half_1R_runner_to_swing
+      - full_at_nearest_swing
+      - swing_to_swing
+
+  - id: R13_reentry_policy
+    category: trade_management
+    description: How many trades allowed per session per direction.
+    hypothesis: >
+      First setup of the session has the cleanest narrative. Re-entries usually
+      dilute edge but should be measured rather than assumed bad.
+    default: one_per_session_per_direction
+    permutation_space:
+      - one_per_session_per_direction
+      - two_per_session_per_direction
+      - unlimited_per_session
+
+  - id: R14_news_filter
+    category: filter
+    description: >
+      Skip days where a high-impact US economic event lands inside the session
+      window.
+    hypothesis: >
+      Event-driven volatility violates the structural reversal premise; the move
+      becomes news-driven, not liquidity-driven.
+    default: us_red_folder
+    permutation_space:
+      - "off"
+      - us_red_folder
+      - cpi_fomc_nfp_only
+
+  - id: R15_execution_timeframe
+    category: timeframe
+    description: Bar timeframe on which sweep, FVG, and inversion are detected.
+    hypothesis: >
+      1m is the right granularity for NY killzone reversal scalps. Locked for
+      v001 to keep degrees of freedom contained during initial validation.
+    default: 1m
+    permutation_space: []
+    locked: true
+
+notes: |
+  v001 is the first RIGOROUS rule spec. It replaces the earlier prose-only draft.
+
+  Iteration log (in-place during v001 calibration; once "released" with a result,
+  any further change = v002):
+    - R04 sweep validity: tightened "wick + reversal" → relaxed to "first touch."
+      Reason: the reversal filter is double-counted at R09 inversion close.
+    - R07 proximity points: 15 → 50; applied universally (not 1-gap-only).
+      Reason: 15 pt was too tight for typical NQ rally amplitudes.
+    - R08 time-to-inversion: 5 → 10 bars.
+      Reason: 5 bars rejected near-miss setups that triggered at bar 6–7.
+
+  Initial run scope (engine smoke-test, NOT an edge conclusion):
+    - Timeframe: 1m only
+    - Window: 1 month (latest available data)
+    - Goal: confirm detector mechanics fire where they should on the chart
+
+  Versioning convention:
+    Every new version (v002, v003, ...) is a COMPLETE standalone file — never
+    a diff. Copy this file, bump `version`, and edit in place. Git history is
+    where diffs live; the file itself must always read as a self-contained spec.

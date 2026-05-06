@@ -1,0 +1,117 @@
+
+================================================================================
+2026-03-02 Mon  PDH=24901  PDL=24636  PDmid=24768  LH=24729  LL=24477
+  Session range 09:30–11:00: 24605 – 24958  (open=24644, close@11=24924)
+  ↓ LONG?  PDL@24636 swept @09:30  close=24683 (mid=24768)  → 0 GAPS [all=77 between_price_and_level=22 size_7_20=6 unfilled=0 prox_50pt=0]
+  ↑ SHORT? LondonHigh@24729 swept @09:31  close=24746 (mid=24768)  → BIAS-BLOCK (close ≤ mid)
+  ↑ SHORT? PDH@24901 swept @10:04  close=24888 (mid=24768)  → 0 GAPS [all=65 between_price_and_level=62 size_7_20=12 unfilled=0 prox_50pt=0]
+
+================================================================================
+2026-03-03 Tue  PDH=25101  PDL=24477  PDmid=24789  LH=24694  LL=24370
+  Session range 09:30–11:00: 24352 – 24661  (open=24535, close@11=24447)
+  ↓ LONG?  PDL@24477 swept @10:02  close=24476 (mid=24789)  → 0 GAPS [all=66 between_price_and_level=52 size_7_20=16 unfilled=3 prox_50pt=0]
+  ↓ LONG?  LondonLow@24370 swept @10:25  close=24372 (mid=24789)  → SELECT gap=(24419,24428) size=9.2
+      → FIRED@bar+11 (LATE — past 10): close@10:36=24442 (target>24428)
+
+================================================================================
+2026-03-04 Wed  PDH=24850  PDL=24352  PDmid=24601  LH=24895  LL=24612
+  Session range 09:30–11:00: 24826 – 25148  (open=24854, close@11=25128)
+  ↑ SHORT? PDH@24850 swept @09:30  close=24935 (mid=24601)  → SELECT gap=(24824,24833) size=8.5
+      → NO TRIGGER in 30 bars. Closest: bar+15 @09:45 close=24846 (dist to target 24824 = +21.0pt)
+  ↑ SHORT? LondonHigh@24895 swept @09:30  close=24935 (mid=24601)  → 0 GAPS [all=88 between_price_and_level=75 size_7_20=21 unfilled=8 prox_50pt=0]
+
+================================================================================
+2026-03-05 Thu  PDH=25250  PDL=24499  PDmid=24874  LH=25206  LL=24973
+  Session range 09:30–11:00: 24930 – 25210  (open=24988, close@11=25082)
+  ↑ SHORT? LondonHigh@25206 swept @10:00  close=25204 (mid=24874)  → 0 GAPS [all=69 between_price_and_level=69 size_7_20=19 unfilled=0 prox_50pt=0]
+  ↓ LONG?  LondonLow@24973 swept @10:30  close=24954 (mid=24874)  → BIAS-BLOCK (close ≥ mid)
+
+================================================================================
+2026-03-06 Fri  PDH=25210  PDL=24772  PDmid=24991  LH=25128  LL=24806
+  Session range 09:30–11:00: 24609 – 24893  (open=24685, close@11=24858)
+  ↓ LONG?  PDL@24772 swept @09:30  close=24682 (mid=24991)  → SELECT gap=(24772,24781) size=9.0
+      → NO TRIGGER in 30 bars. Closest: bar+30 @10:00 close=24738 (dist to target 24781 = +43.2pt)
+  ↓ LONG?  LondonLow@24806 swept @09:30  close=24682 (mid=24991)  → SELECT gap=(24772,24781) size=9.0
+      → NO TRIGGER in 30 bars. Closest: bar+30 @10:00 close=24738 (dist to target 24781 = +43.2pt)
+
+================================================================================
+2026-03-09 Mon  PDH=24473  PDL=24000  PDmid=24236  LH=24496  LL=24210
+  Session range 09:30–11:00: 24313 – 24586  (open=24432, close@11=24549)
+  ↑ SHORT? PDH@24473 swept @09:30  close=24511 (mid=24236)  → 0 GAPS [all=84 between_price_and_level=82 size_7_20=33 unfilled=7 prox_50pt=0]
+  ↑ SHORT? LondonHigh@24496 swept @09:30  close=24511 (mid=24236)  → 0 GAPS [all=84 between_price_and_level=82 size_7_20=33 unfilled=7 prox_50pt=0]
+
+================================================================================
+2026-03-10 Tue  PDH=25058  PDL=24086  PDmid=24572  LH=25150  LL=24939
+  Session range 09:30–11:00: 24892 – 25153  (open=24991, close@11=25151)
+  ↑ SHORT? PDH@25058 swept @09:30  close=25046 (mid=24572)  → 0 GAPS [all=78 between_price_and_level=56 size_7_20=13 unfilled=1 prox_50pt=0]
+  ↓ LONG?  LondonLow@24939 swept @10:00  close=24931 (mid=24572)  → BIAS-BLOCK (close ≥ mid)
+  ↑ SHORT? LondonHigh@25150 swept @10:59  close=25151 (mid=24572)  → 0 GAPS [all=78 between_price_and_level=78 size_7_20=18 unfilled=1 prox_50pt=0]
+
+================================================================================
+2026-03-11 Wed  PDH=25218  PDL=24863  PDmid=25040  LH=25047  LL=24896
+  Session range 09:30–11:00: 24958 – 25180  (open=25035, close@11=25065)
+  ↑ SHORT? LondonHigh@25047 swept @09:30  close=25084 (mid=25040)  → 0 GAPS [all=68 between_price_and_level=60 size_7_20=16 unfilled=1 prox_50pt=0]
+
+================================================================================
+2026-03-12 Thu  PDH=25180  PDL=24696  PDmid=24938  LH=24928  LL=24808
+  Session range 09:30–11:00: 24572 – 24834  (open=24776, close@11=24620)
+  ↓ LONG?  LondonLow@24808 swept @09:30  close=24782 (mid=24938)  → SKIP 3 gaps: (24846,24854,8.0), (24818,24834,15.2), (24806,24818,12.0)
+  ↓ LONG?  PDL@24696 swept @09:47  close=24699 (mid=24938)  → SELECT gap=(24708,24726) size=18.0
+      → FIRED: close@09:49=24736 (target>24726)
+
+================================================================================
+2026-03-13 Fri  PDH=24928  PDL=24491  PDmid=24710  LH=24665  LL=24397
+  Session range 09:30–11:00: 24482 – 24805  (open=24646, close@11=24490)
+  ↑ SHORT? LondonHigh@24665 swept @09:30  close=24666 (mid=24710)  → BIAS-BLOCK (close ≤ mid)
+  ↓ LONG?  PDL@24491 swept @10:57  close=24495 (mid=24710)  → SELECT gap=(24509,24526) size=16.8
+      → NO TRIGGER in 30 bars. Closest: bar+1 @10:58 close=24499 (dist to target 24526 = +26.8pt)
+
+================================================================================
+2026-03-16 Mon  PDH=24755  PDL=24278  PDmid=24516  LH=24850  LL=24690
+  Session range 09:30–11:00: 24833 – 24980  (open=24869, close@11=24909)
+  ↑ SHORT? PDH@24755 swept @09:30  close=24863 (mid=24516)  → SELECT gap=(24748,24756) size=7.8
+      → NO TRIGGER in 30 bars. Closest: bar+14 @09:44 close=24886 (dist to target 24748 = +137.0pt)
+  ↑ SHORT? LondonHigh@24850 swept @09:30  close=24863 (mid=24516)  → SELECT gap=(24816,24827) size=11.0
+      → NO TRIGGER in 30 bars. Closest: bar+14 @09:44 close=24886 (dist to target 24816 = +69.8pt)
+
+================================================================================
+2026-03-17 Tue  PDH=25035  PDL=24690  PDmid=24862  LH=24860  LL=24738
+  Session range 09:30–11:00: 24964 – 25117  (open=25001, close@11=25076)
+  ↑ SHORT? LondonHigh@24860 swept @09:30  close=25002 (mid=24862)  → SELECT gap=(24832,24846) size=13.8
+      → NO TRIGGER in 30 bars. Closest: bar+1 @09:31 close=25017 (dist to target 24832 = +185.5pt)
+  ↑ SHORT? PDH@25035 swept @09:32  close=25059 (mid=24862)  → 0 GAPS [all=96 between_price_and_level=92 size_7_20=13 unfilled=3 prox_50pt=0]
+
+================================================================================
+2026-03-18 Wed  PDH=25144  PDL=24728  PDmid=24936  LH=25198  LL=25098
+  Session range 09:30–11:00: 24812 – 24998  (open=24928, close@11=24882)
+  ↓ LONG?  LondonLow@25098 swept @09:30  close=24924 (mid=24936)  → SELECT gap=(25085,25095) size=9.5
+      → NO TRIGGER in 30 bars. Closest: bar+16 @09:46 close=24997 (dist to target 25095 = +97.8pt)
+
+================================================================================
+2026-03-19 Thu  PDH=25210  PDL=24562  PDmid=24886  LH=24650  LL=24500
+  Session range 09:30–11:00: 24327 – 24547  (open=24428, close@11=24489)
+  ↓ LONG?  PDL@24562 swept @09:30  close=24374 (mid=24886)  → SELECT gap=(24582,24590) size=8.5
+      → NO TRIGGER in 30 bars. Closest: bar+30 @10:00 close=24530 (dist to target 24590 = +61.0pt)
+  ↓ LONG?  LondonLow@24500 swept @09:30  close=24374 (mid=24886)  → 0 GAPS [all=83 between_price_and_level=83 size_7_20=18 unfilled=2 prox_50pt=0]
+
+================================================================================
+2026-03-20 Fri  PDH=24692  PDL=24327  PDmid=24509  LH=24616  LL=24319
+  Session range 09:30–11:00: 24231 – 24491  (open=24487, close@11=24271)
+  ↓ LONG?  PDL@24327 swept @09:56  close=24331 (mid=24509)  → 0 GAPS [all=93 between_price_and_level=86 size_7_20=15 unfilled=3 prox_50pt=0]
+  ↓ LONG?  LondonLow@24319 swept @09:57  close=24317 (mid=24509)  → 0 GAPS [all=93 between_price_and_level=87 size_7_20=15 unfilled=3 prox_50pt=0]
+
+================================================================================
+2026-03-23 Mon  PDH=24095  PDL=23890  PDmid=23992  LH=24763  LL=23772
+  Session range 09:30–11:00: 24432 – 24688  (open=24493, close@11=24610)
+  ↑ SHORT? PDH@24095 swept @09:30  close=24471 (mid=23992)  → 0 GAPS [all=76 between_price_and_level=59 size_7_20=17 unfilled=0 prox_50pt=0]
+
+================================================================================
+2026-03-24 Tue  PDH=24763  PDL=23772  PDmid=24268  LH=24507  LL=24298
+  Session range 09:30–11:00: 24134 – 24343  (open=24254, close@11=24242)
+  ↓ LONG?  LondonLow@24298 swept @09:30  close=24264 (mid=24268)  → SELECT gap=(24306,24318) size=12.0
+      → NO TRIGGER in 30 bars. Closest: bar+1 @09:31 close=24313 (dist to target 24318 = +4.5pt)
+
+================================================================================
+2026-03-25 Wed  PDH=24550  PDL=24134  PDmid=24342  LH=24535  LL=24352
+  Session range 09:30–11:00: 24328 – 24526  (open=24431, close@11=24484)
+  ↓ LONG?  LondonLow@24352 swept @10:00  close=24342 (mid=24342)  → BIAS-BLOCK (close ≥ mid)

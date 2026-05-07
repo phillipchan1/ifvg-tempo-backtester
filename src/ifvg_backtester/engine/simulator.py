@@ -42,7 +42,10 @@ RTH_ONLY_INVERSION_TARGETS = True
 # v002: allow STRADDLING gaps (bullish FVG with top above current price as long
 # as bottom is below). Close-through trigger still fires on close < gap.low.
 ALLOW_STRADDLING_GAPS = True
-TIME_TO_INVERSION_BARS = 10
+# v002: time-to-inversion is TIME-based, not bar-based. Bar-based was a v001
+# holdover that broke multi-TF runs (10 bars on 5m = 50 minutes — half the
+# killzone). 15 min ≈ one ICT macro window.
+TIME_TO_INVERSION_MINUTES = 15
 STOP_BUFFER_PTS = 5.0
 RR_TAKE_PROFIT = 1.0
 MAX_TRADES_PER_SESSION_PER_DIR = 1
@@ -267,7 +270,8 @@ def run_session(
             if setup is None or ts == setup.sweep_ts:
                 continue
             bars_since = idx - setup.sweep_bar_idx
-            if bars_since > TIME_TO_INVERSION_BARS:
+            minutes_since = (ts - setup.sweep_ts).total_seconds() / 60.0
+            if minutes_since > TIME_TO_INVERSION_MINUTES:
                 active[direction] = None
                 continue
 

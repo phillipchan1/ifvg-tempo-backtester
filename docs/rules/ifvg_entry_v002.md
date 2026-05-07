@@ -158,13 +158,15 @@ allow_straddling_gaps: true        ← v002 new
 
 ---
 
-### R08 — Time-to-inversion (candles)
-**Description.** Max number of candles allowed between the sweep candle and the inversion-trigger candle. Beyond this, the setup expires and the engine resets.
+### R08 — Time-to-inversion (minutes) ⭐ CHANGED to time-based in v002 calibration
+**Description.** Max wall-clock minutes between the sweep candle and the inversion-trigger candle. Beyond this the setup expires and the engine resets. **Time-based, not bar-based** — same logic firing on 30s and 5m bars must allow the same real-time window for the move to develop.
 
-**Hypothesis.** "No stalling" — fast inversion signals strong reversal intent.
+**Hypothesis.** "No stalling" — fast inversion signals strong reversal intent. 15 min ≈ one ICT macro window (e.g. 09:30–9:45) and is the longest reasonable wait before the structural reversal premise becomes stale.
 
-**Default.** `10`
-**Permutations.** `3`, `5`, `10`, `15`, `20`
+**Why time-based:** the v001/v002 bar-based default (10 bars) produced absurd ranges across TFs — 5 min on 30s, 50 min on 5m. A real reversal takes the same wall-clock time regardless of what TF you sample at. Multi-TF run on March 2026 confirmed the bar-based version was the dominant difference between TF outcomes.
+
+**Default.** `15` minutes
+**Permutations.** `5`, `10`, `15`, `20`, `30` minutes
 
 ---
 
@@ -241,8 +243,9 @@ R     = |stop − entry|
 | R03 session H/L definition | raw min/max of session bars | **swing-based** (15m N=2 fractal, lowest swing low / highest swing high in window) |
 | R05 inversion-target FVG window | `same_day` (any pre-market or RTH) | `rth_only` (post 09:30 NY only) |
 | R07 straddling gaps | rejected (required `gap.high ≤ current_price`) | accepted (require `gap.low < current_price`) |
+| R08 time-to-inversion | bar-based (`10` bars — broke across TFs) | **time-based** (`15` minutes — TF-invariant) |
 
-Both fixes are bug-class — v001's behavior was a leak/oversight, not a deliberate filter. The wider R03 pool is a default change; the prior `[prev_day, london]` set is still in the permutation space.
+All four fixes are bug-class — v001's behavior was a leak/oversight, not a deliberate filter. The wider R03 pool is a default change; the prior `[prev_day, london]` set is still in the permutation space.
 
 ---
 

@@ -195,17 +195,23 @@ rules:
       - { max_gaps: 2, eligibility_proximity_points: 50, target_when_multiple: closest_to_swept_level, allow_straddling_gaps: true }
       - { max_gaps: 2, eligibility_proximity_points: 50, target_when_multiple: most_recent, allow_straddling_gaps: false }   # v001 strict-below
 
-  - id: R08_time_to_inversion_candles
+  - id: R08_time_to_inversion_minutes
     category: trigger
     description: >
-      Max number of candles allowed between the sweep candle and the inversion-
-      trigger candle. Beyond this, the setup expires and the engine resets.
+      Max wall-clock MINUTES allowed between the sweep candle and the
+      inversion-trigger candle. Beyond this the setup expires.
+
+      Time-based (not bar-based) so the same logic admits the same real-time
+      window across execution timeframes. The earlier bar-based default (10
+      bars) collapsed to 5 min on 30s and 50 min on 5m — neither correct for
+      a structural reversal.
     hypothesis: >
       "No stalling" — fast inversion signals strong reversal intent. Slow
-      inversions are usually grind/chop. 10 bars (10 min on 1m) gives enough
-      room for a real reversal to form without admitting drifting setups.
-    default: 10
-    permutation_space: [3, 5, 10, 15, 20]
+      inversions are usually grind/chop. 15 min covers one ICT macro window
+      and is the longest reasonable wait before the reversal premise becomes
+      stale.
+    default: 15
+    permutation_space: [5, 10, 15, 20, 30]
 
   - id: R09_inversion_trigger
     category: trigger

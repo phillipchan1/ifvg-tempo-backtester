@@ -20,7 +20,7 @@ from ifvg_backtester.engine.levels import daily_levels, london_session_levels
 from ifvg_backtester.engine.fvg import detect_fvgs, fvg_filled_at
 from ifvg_backtester.engine.simulator import (
     GAP_SIZE_MIN, GAP_SIZE_MAX, ELIGIBILITY_PROX_POINTS,
-    MAX_GAPS_BETWEEN, TIME_TO_INVERSION_BARS,
+    MAX_GAPS_BETWEEN, TIME_TO_INVERSION_MINUTES,
     _bias_allows, _eligible_gaps_for_direction, _select_target_gap,
 )
 
@@ -152,8 +152,8 @@ for date_ny, day_df in df.groupby(df.index.normalize()):
             fire, miss = trace_inversion(tgt, "short", sess_bars, idx, scan_bars=30)
             if fire:
                 bar_off, fts, fclose = fire
-                in_window = bar_off <= TIME_TO_INVERSION_BARS
-                tag = "FIRED" if in_window else f"FIRED@{bar_off} (LATE — past {TIME_TO_INVERSION_BARS})"
+                in_window = bar_off <= TIME_TO_INVERSION_MINUTES
+                tag = "FIRED" if in_window else f"FIRED@{bar_off} (LATE — past {TIME_TO_INVERSION_MINUTES})"
                 print(f"      → {tag}: close@{fts}={fclose:.0f} (target<{tgt.low:.0f})")
             else:
                 bar_off, dist, mts, mclose = miss
@@ -184,8 +184,8 @@ for date_ny, day_df in df.groupby(df.index.normalize()):
             fire, miss = trace_inversion(tgt, "long", sess_bars, idx, scan_bars=30)
             if fire:
                 bar_off, fts, fclose = fire
-                in_window = bar_off <= TIME_TO_INVERSION_BARS
-                tag = "FIRED" if in_window else f"FIRED@bar+{bar_off} (LATE — past {TIME_TO_INVERSION_BARS})"
+                in_window = bar_off <= TIME_TO_INVERSION_MINUTES
+                tag = "FIRED" if in_window else f"FIRED@bar+{bar_off} (LATE — past {TIME_TO_INVERSION_MINUTES})"
                 print(f"      → {tag}: close@{fts}={fclose:.0f} (target>{tgt.high:.0f})")
             else:
                 bar_off, dist, mts, mclose = miss

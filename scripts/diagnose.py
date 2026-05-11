@@ -12,7 +12,7 @@ from ifvg_backtester.engine.data import load_1m_ny
 from ifvg_backtester.engine.levels import daily_levels, london_session_levels
 from ifvg_backtester.engine.fvg import detect_fvgs
 from ifvg_backtester.engine.simulator import (
-    SESSION_START, SESSION_END, TIME_TO_INVERSION_BARS,
+    SESSION_START, SESSION_END, TIME_TO_INVERSION_MINUTES,
     _bias_allows, _eligible_gaps_for_direction, _select_target_gap,
 )  # type: ignore
 
@@ -66,7 +66,11 @@ for date_ny, day_df in df.groupby(df.index.normalize()):
     state = {n: "fresh" for n, _ in high_lvls + low_lvls}
 
     def _check_inversion_window(target, direction, sweep_idx, day_df, sess_bars):
-        for j in range(sweep_idx + 1, min(sweep_idx + 1 + TIME_TO_INVERSION_BARS, len(sess_bars))):
+        sweep_ts = sess_bars.index[sweep_idx]
+        for j in range(sweep_idx + 1, len(sess_bars)):
+            ts = sess_bars.index[j]
+            if (ts - sweep_ts).total_seconds() / 60.0 > TIME_TO_INVERSION_MINUTES:
+                return None
             close = sess_bars.iloc[j]["close"]
             if direction == "short" and close < target.low:
                 return j - sweep_idx

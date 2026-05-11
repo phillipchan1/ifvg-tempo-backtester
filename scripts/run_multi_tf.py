@@ -165,7 +165,7 @@ def main() -> int:
     p.add_argument("--start", required=True)
     p.add_argument("--end", required=True)
     p.add_argument("--tfs", nargs="+", default=["30s", "1m", "2m", "3m", "5m"])
-    p.add_argument("--out", default="runs/multi_tf_2026-03.csv")
+    p.add_argument("--out", default="runs/v002/2026-03_multi_tf.csv")
     args = p.parse_args()
 
     buffered_start = (pd.Timestamp(args.start) - pd.Timedelta(days=14)).strftime("%Y-%m-%d")

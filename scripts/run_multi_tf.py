@@ -49,27 +49,28 @@ HTF_PROXIMITY_PTS = 300.0
 
 def _friday_close_and_monday_open(
     date_ny: pd.Timestamp, by_date: dict[pd.Timestamp, pd.DataFrame]
-) -> tuple[float | None, float | None]:
+) -> tuple[float | None, float | None, pd.Timestamp | None]:
     if date_ny.dayofweek != 0:
-        return None, None
+        return None, None, None
     fri_dates = [d for d in by_date if d.dayofweek == 4 and d < date_ny]
     if not fri_dates:
-        return None, None
+        return None, None, None
     fri_df = by_date[max(fri_dates)]
     fri_rth = fri_df[
         ((fri_df.index.hour == 9) & (fri_df.index.minute >= 30))
         | ((fri_df.index.hour > 9) & (fri_df.index.hour < 16))
     ]
     if fri_rth.empty:
-        return None, None
+        return None, None, None
     fri_close = float(fri_rth.iloc[-1]["close"])
+    fri_close_ts = fri_rth.index[-1]
 
     mon_df = by_date[date_ny]
     mon_open_bar = mon_df[(mon_df.index.hour == 9) & (mon_df.index.minute >= 30)]
     if mon_open_bar.empty:
-        return None, None
+        return None, None, None
     mon_open = float(mon_open_bar.iloc[0]["open"])
-    return fri_close, mon_open
+    return fri_close, mon_open, fri_close_ts
 
 
 def run_one_tf(
@@ -107,11 +108,11 @@ def run_one_tf(
         prior_1m_dates = sorted([d for d in by_date_1m if d < date_ny])
         prior_df_1m = by_date_1m[prior_1m_dates[-1]] if prior_1m_dates else None
 
-        fri_close, mon_open = _friday_close_and_monday_open(date_ny, by_date_1m)
+        fri_close, mon_open, fri_close_ts = _friday_close_and_monday_open(date_ny, by_date_1m)
 
         sweep_levels = build_session_levels(
             date_ny, day_df_1m, prior_df_1m,
-            friday_close=fri_close, monday_open=mon_open,
+            friday_close=fri_close, monday_open=mon_open, friday_close_ts=fri_close_ts,
         )
 
         # HTF FVG levels — refer to exec_day_df's session open price
@@ -218,22 +219,40 @@ def main() -> int:
         return 0
 
     out_df = pd.DataFrame(rows)
-    out_df = out_df[[
-        "exec_tf", "session_date", "direction", "swept_level_name",
+
+    # Full schema (what we WRITE to CSV) — every Trade field for full traceability.
+    csv_cols = [
+        "exec_tf", "session_date", "direction",
+        "swept_level_name", "swept_level_price", "swept_level_formed_at",
+        "sweep_ts",
+        "target_gap_high", "target_gap_low", "target_gap_size", "target_gap_formed_at",
+        "bars_to_inversion",
+        "entry_ts", "entry_price", "stop_price", "tp_price", "risk_points",
+        "exit_ts", "exit_price", "outcome", "pnl_points", "r_multiple",
+    ]
+    out_df = out_df[csv_cols]
+
+    # Compact preview table for stdout (the columns useful at a glance).
+    preview_cols = [
+        "exec_tf", "session_date", "direction",
+        "swept_level_name", "swept_level_price", "swept_level_formed_at",
         "sweep_ts", "target_gap_size", "bars_to_inversion",
         "entry_ts", "entry_price", "risk_points", "exit_ts",
         "outcome", "pnl_points", "r_multiple",
-    ]]
-    out_df["session_date"] = pd.to_datetime(out_df["session_date"]).dt.strftime("%Y-%m-%d")
-    out_df["sweep_ts"] = pd.to_datetime(out_df["sweep_ts"]).dt.strftime("%H:%M:%S")
-    out_df["entry_ts"] = pd.to_datetime(out_df["entry_ts"]).dt.strftime("%H:%M:%S")
-    out_df["exit_ts"] = pd.to_datetime(out_df["exit_ts"]).dt.strftime("%m-%d %H:%M:%S")
-    out_df = out_df.sort_values(["session_date", "exec_tf", "sweep_ts"])
-    with pd.option_context("display.max_rows", None, "display.width", 240):
-        print(out_df.to_string(index=False))
+    ]
+    preview = out_df[preview_cols].copy()
+    preview["session_date"] = pd.to_datetime(preview["session_date"]).dt.strftime("%Y-%m-%d")
+    preview["sweep_ts"] = pd.to_datetime(preview["sweep_ts"]).dt.strftime("%H:%M:%S")
+    preview["entry_ts"] = pd.to_datetime(preview["entry_ts"]).dt.strftime("%H:%M:%S")
+    preview["exit_ts"] = pd.to_datetime(preview["exit_ts"]).dt.strftime("%m-%d %H:%M:%S")
+    preview["swept_level_formed_at"] = pd.to_datetime(preview["swept_level_formed_at"]).dt.strftime("%m-%d %H:%M")
+    preview = preview.sort_values(["session_date", "exec_tf", "sweep_ts"])
+    with pd.option_context("display.max_rows", None, "display.width", 280):
+        print(preview.to_string(index=False))
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_df = out_df.sort_values(["session_date", "exec_tf", "sweep_ts"])
     out_df.to_csv(out_path, index=False)
     print(f"\nMulti-TF trade log → {out_path}")
 

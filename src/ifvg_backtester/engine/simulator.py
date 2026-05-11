@@ -58,6 +58,7 @@ class _ActiveSetup:
     sweep_bar_idx: int  # session-bar index of sweep
     swept_level_name: str
     swept_level_price: float
+    swept_level_formed_at: Optional[pd.Timestamp]
     target: FVG
 
 
@@ -212,33 +213,27 @@ def run_session(
     # it can't be swept in the ICT sense. Same for "support" levels above the open.
     # This is a lightweight stand-in for fvgc-backtest's swept_pre_rth tracking.
     sess_open = float(sess_bars.iloc[0]["open"])
-    high_levels: List[tuple[str, float]] = [
-        (L.name, float(L.price))
-        for L in sweep_levels
-        if L.side == "resistance" and L.price > sess_open
-    ]
-    low_levels: List[tuple[str, float]] = [
-        (L.name, float(L.price))
-        for L in sweep_levels
-        if L.side == "support" and L.price < sess_open
-    ]
+    # Carry the SweepLevel object so we can record level price + formed_at on the trade.
+    high_levels = [L for L in sweep_levels if L.side == "resistance" and L.price > sess_open]
+    low_levels = [L for L in sweep_levels if L.side == "support" and L.price < sess_open]
 
     # Per-level lifecycle: each level can be swept once per session (first-touch only).
     # Sweep = ANY first-touch (wick or close-through — same to us). The inversion
     # mechanic does the real reversal filtering, not the sweep candle itself.
-    level_state: dict[str, str] = {name: "fresh" for name, _ in high_levels + low_levels}
+    level_state: dict[str, str] = {L.name: "fresh" for L in high_levels + low_levels}
     active: dict[str, Optional[_ActiveSetup]] = {"short": None, "long": None}
     trades_this_session = {"short": 0, "long": 0}
     trades: List[Trade] = []
 
     for idx, (ts, bar) in enumerate(sess_bars.iterrows()):
         # 1) Detect sweeps THIS bar — first-touch only, no wick/close distinction.
-        for name, lvl in high_levels:
-            if level_state[name] != "fresh" or active["short"] is not None:
+        for L in high_levels:
+            lvl = float(L.price)
+            if level_state[L.name] != "fresh" or active["short"] is not None:
                 continue
             if bar["high"] < lvl:
                 continue  # level not reached this bar
-            level_state[name] = "swept"
+            level_state[L.name] = "swept"
             # bias still required: shorts only above prior-day mid
             if not _bias_allows("short", bar["close"], pd_mid):
                 continue
@@ -247,14 +242,17 @@ def run_session(
             )
             target = _select_target_gap(cands, lvl, ts, pre_and_session_bars)
             if target is not None and trades_this_session["short"] < MAX_TRADES_PER_SESSION_PER_DIR:
-                active["short"] = _ActiveSetup("short", ts, idx, name, lvl, target)
+                active["short"] = _ActiveSetup(
+                    "short", ts, idx, L.name, lvl, L.formed_at, target,
+                )
 
-        for name, lvl in low_levels:
-            if level_state[name] != "fresh" or active["long"] is not None:
+        for L in low_levels:
+            lvl = float(L.price)
+            if level_state[L.name] != "fresh" or active["long"] is not None:
                 continue
             if bar["low"] > lvl:
                 continue
-            level_state[name] = "swept"
+            level_state[L.name] = "swept"
             if not _bias_allows("long", bar["close"], pd_mid):
                 continue
             cands = _eligible_gaps_for_direction(
@@ -262,7 +260,9 @@ def run_session(
             )
             target = _select_target_gap(cands, lvl, ts, pre_and_session_bars)
             if target is not None and trades_this_session["long"] < MAX_TRADES_PER_SESSION_PER_DIR:
-                active["long"] = _ActiveSetup("long", ts, idx, name, lvl, target)
+                active["long"] = _ActiveSetup(
+                    "long", ts, idx, L.name, lvl, L.formed_at, target,
+                )
 
         # 2) Check inversion trigger for each active setup (skip the sweep bar itself)
         for direction in ("short", "long"):
@@ -309,6 +309,7 @@ def run_session(
                     direction=direction,
                     swept_level_name=setup.swept_level_name,
                     swept_level_price=setup.swept_level_price,
+                    swept_level_formed_at=setup.swept_level_formed_at,
                     sweep_ts=setup.sweep_ts,
                     target_gap_high=tg.high,
                     target_gap_low=tg.low,

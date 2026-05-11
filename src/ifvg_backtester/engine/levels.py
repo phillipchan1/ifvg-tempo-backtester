@@ -59,6 +59,12 @@ class SweepLevel:
     group: str       # 'prev_day' | 'london' | 'asia' | 'overnight' | '6am' | 'nwog' | 'htf_fvg_1H' | ...
     side: str        # 'resistance' (price approached from below) | 'support' (from above)
     price: float
+    # When this level was "formed" on the chart:
+    #   - session H/L: timestamp of the confirming swing bar (close-time of the
+    #     15m bar that made the high/low — use `formed_at - 15min` for TV open-time)
+    #   - HTF FVG:     close-time of the 3rd candle that confirmed the gap
+    #   - NWOG:        timestamp of Friday's RTH close
+    formed_at: Optional[pd.Timestamp] = None
 
 
 # ----------------------------------------------------------------------------
@@ -106,12 +112,17 @@ def session_swing_high_low(
     *,
     swing_tf: str = SWING_TF,
     n: int = SWING_N,
-) -> Tuple[Optional[float], Optional[float]]:
+) -> Tuple[Optional[Tuple[float, pd.Timestamp]], Optional[Tuple[float, pd.Timestamp]]]:
     """Highest swing high and lowest swing low within `[start_ts, end_ts)`.
 
-    Resamples 1m → `swing_tf` for swing detection. Returns (None, None) if the
-    window has insufficient bars to confirm any swing. Falls back to raw extremes
-    only if no swings are confirmed at all (rare).
+    Returns ((swing_high_price, swing_high_ts), (swing_low_price, swing_low_ts)).
+    Each element is None if the window has no bars in that direction. The ts
+    is the swing-detection-TF bar close (right-labelled); subtract the TF to
+    get the TradingView "bar open" time.
+
+    Resamples 1m → `swing_tf` for swing detection. If no swings confirm at all
+    (rare — very short or perfectly trending window), falls back to raw extreme
+    with the timestamp of the bar that hit that extreme.
     """
     window_1m = bars_1m[(bars_1m.index >= start_ts) & (bars_1m.index < end_ts)]
     if window_1m.empty:
@@ -119,17 +130,27 @@ def session_swing_high_low(
 
     swing_bars = _resample_for_swings(window_1m, swing_tf)
     swings = find_swings(swing_bars, n=n)
-    highs = [s["price"] for s in swings if s["type"] == "high"]
-    lows = [s["price"] for s in swings if s["type"] == "low"]
+    highs = [s for s in swings if s["type"] == "high"]
+    lows = [s for s in swings if s["type"] == "low"]
 
-    if not highs and not lows:
-        # No confirmed swings (very short window or perfectly trending). Fall
-        # back to raw extreme so the level isn't silently dropped.
-        return float(window_1m["high"].max()), float(window_1m["low"].min())
+    if highs:
+        top = max(highs, key=lambda s: s["price"])
+        high_out = (float(top["price"]), top["ts"])
+    else:
+        # No confirmed swing high — fall back to raw max with its bar timestamp.
+        raw_high = float(window_1m["high"].max())
+        raw_ts = window_1m["high"].idxmax()
+        high_out = (raw_high, raw_ts)
 
-    swing_high = max(highs) if highs else float(window_1m["high"].max())
-    swing_low = min(lows) if lows else float(window_1m["low"].min())
-    return swing_high, swing_low
+    if lows:
+        bot = min(lows, key=lambda s: s["price"])
+        low_out = (float(bot["price"]), bot["ts"])
+    else:
+        raw_low = float(window_1m["low"].min())
+        raw_ts = window_1m["low"].idxmin()
+        low_out = (raw_low, raw_ts)
+
+    return high_out, low_out
 
 
 # ----------------------------------------------------------------------------
@@ -156,9 +177,11 @@ def _swing_levels_for_window(
     high, low = session_swing_high_low(bars_1m, start_ts, end_ts)
     out: List[SweepLevel] = []
     if high is not None:
-        out.append(SweepLevel(high_name, group, "resistance", float(high)))
+        h_price, h_ts = high
+        out.append(SweepLevel(high_name, group, "resistance", float(h_price), formed_at=h_ts))
     if low is not None:
-        out.append(SweepLevel(low_name, group, "support", float(low)))
+        l_price, l_ts = low
+        out.append(SweepLevel(low_name, group, "support", float(l_price), formed_at=l_ts))
     return out
 
 
@@ -168,6 +191,7 @@ def build_session_levels(
     prior_day_df: Optional[pd.DataFrame],
     friday_close: Optional[float] = None,
     monday_open: Optional[float] = None,
+    friday_close_ts: Optional[pd.Timestamp] = None,
 ) -> List[SweepLevel]:
     """All session-based H/L sweep levels available at the start of `date_ny`.
 
@@ -241,10 +265,18 @@ def build_session_levels(
         "6am_high", "6am_low", "6am",
     ))
 
-    # NWOG (Mondays only) — two prices, not swings
+    # NWOG (Mondays only) — two prices, not swings. formed_at = Friday's RTH close.
     if date_ny.dayofweek == 0 and friday_close is not None and monday_open is not None:
-        levels.append(SweepLevel("nwog_high", "nwog", "resistance", float(max(friday_close, monday_open))))
-        levels.append(SweepLevel("nwog_low",  "nwog", "support",    float(min(friday_close, monday_open))))
+        levels.append(SweepLevel(
+            "nwog_high", "nwog", "resistance",
+            float(max(friday_close, monday_open)),
+            formed_at=friday_close_ts,
+        ))
+        levels.append(SweepLevel(
+            "nwog_low", "nwog", "support",
+            float(min(friday_close, monday_open)),
+            formed_at=friday_close_ts,
+        ))
 
     return levels
 
@@ -367,7 +399,13 @@ def active_htf_fvg_levels(
                 continue
         formed_str = f["formed_at"].strftime("%Y%m%d_%H%M")
         name = f"htf_fvg_{tf_label}_{f['direction']}_{formed_str}"
-        out.append(SweepLevel(name=name, group=f"htf_fvg_{tf_label}", side=side, price=float(near_edge)))
+        out.append(SweepLevel(
+            name=name,
+            group=f"htf_fvg_{tf_label}",
+            side=side,
+            price=float(near_edge),
+            formed_at=f["formed_at"],
+        ))
     return out
 
 

@@ -49,29 +49,30 @@ def _prior_trading_dates(all_dates: list[pd.Timestamp]) -> dict[pd.Timestamp, pd
 
 def _friday_close_and_monday_open(
     date_ny: pd.Timestamp, by_date: dict[pd.Timestamp, pd.DataFrame]
-) -> tuple[float | None, float | None]:
-    """For a Monday, return (prior Friday's RTH close, this Monday's RTH open).
-    Returns (None, None) for non-Mondays or missing data."""
+) -> tuple[float | None, float | None, pd.Timestamp | None]:
+    """For a Monday, return (Friday RTH close, Monday RTH open, Friday close ts).
+    Returns (None, None, None) for non-Mondays or missing data."""
     if date_ny.dayofweek != 0:
-        return None, None
+        return None, None, None
     fri_dates = [d for d in by_date if d.dayofweek == 4 and d < date_ny]
     if not fri_dates:
-        return None, None
+        return None, None, None
     fri_df = by_date[max(fri_dates)]
     fri_rth = fri_df[
         ((fri_df.index.hour == 9) & (fri_df.index.minute >= 30))
         | ((fri_df.index.hour > 9) & (fri_df.index.hour < 16))
     ]
     if fri_rth.empty:
-        return None, None
+        return None, None, None
     fri_close = float(fri_rth.iloc[-1]["close"])
+    fri_close_ts = fri_rth.index[-1]
 
     mon_df = by_date[date_ny]
     mon_open_bar = mon_df[(mon_df.index.hour == 9) & (mon_df.index.minute >= 30)]
     if mon_open_bar.empty:
-        return None, None
+        return None, None, None
     mon_open = float(mon_open_bar.iloc[0]["open"])
-    return fri_close, mon_open
+    return fri_close, mon_open, fri_close_ts
 
 
 def main() -> int:
@@ -125,11 +126,12 @@ def main() -> int:
         prior_date = prior_map.get(date_ny)
         prior_day_df = by_date_dict.get(prior_date) if prior_date is not None else None
 
-        fri_close, mon_open = _friday_close_and_monday_open(date_ny, by_date_dict)
+        fri_close, mon_open, fri_close_ts = _friday_close_and_monday_open(date_ny, by_date_dict)
 
         # Session H/L levels
         sweep_levels = build_session_levels(
-            date_ny, day_df, prior_day_df, friday_close=fri_close, monday_open=mon_open
+            date_ny, day_df, prior_day_df,
+            friday_close=fri_close, monday_open=mon_open, friday_close_ts=fri_close_ts,
         )
 
         # HTF FVGs active at session start, filtered to nearby ones

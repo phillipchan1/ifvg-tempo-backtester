@@ -25,6 +25,7 @@ class Trade:
     direction: str  # 'short' | 'long'
     swept_level_name: str
     swept_level_price: float
+    swept_level_formed_at: Optional[pd.Timestamp]
     sweep_ts: pd.Timestamp
     target_gap_high: float
     target_gap_low: float

@@ -1,9 +1,11 @@
-"""Run v001 IFVG backtest on a date range. Smoke-test runner.
+"""Run IFVG backtest on a date range, single execution TF. Smoke-test runner.
 
 Usage:
     python scripts/run_backtest.py --start 2026-03-01 --end 2026-03-26 \\
         --csv data/nq-front-month.ohlcv-1m.csv \\
-        --out runs/v001_2026-03.csv
+        --out runs/v002/2026-03_1m.csv
+
+See `scripts/run_multi_tf.py` for multi-TF runs.
 """
 
 from __future__ import annotations

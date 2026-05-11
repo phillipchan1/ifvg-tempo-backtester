@@ -45,6 +45,9 @@ trade_journal_master.csv
 # Track market/input CSVs under data/
 !data/
 !data/**/*.csv
+# Track backtest run outputs so we can diff trade sets across rule versions
+!runs/
+!runs/**/*.csv
 
 # OS
 .DS_Store

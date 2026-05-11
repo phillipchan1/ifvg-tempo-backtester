@@ -25,6 +25,7 @@ import pandas as pd
 
 from .models import FVG, Trade
 from .fvg import detect_fvgs, fvg_filled_at
+from .levels import level_swept_pre_rth
 
 
 # v002 defaults --- inline so the simulator stays readable.
@@ -206,16 +207,30 @@ def run_session(
         return []
 
     # Split sweep targets into resistance (sweep-from-below = short candidate) and
-    # support (sweep-from-above = long candidate). Each tuple is (name, price).
+    # support (sweep-from-above = long candidate). Two filters applied:
     #
-    # Filter to levels on the CORRECT side of the session-open price. A "resistance"
-    # level below the open is already broken (price gapped through it overnight) —
-    # it can't be swept in the ICT sense. Same for "support" levels above the open.
-    # This is a lightweight stand-in for fvgc-backtest's swept_pre_rth tracking.
+    #  1) Wrong-side: price must approach the level from the structurally correct
+    #     side. A "resistance" level at/below the session open isn't resistance —
+    #     price is already at or past it. Same for "support" at/above the open.
+    #
+    #  2) v003 NEW — pre-RTH wick-sweep tracking (session H/L only; HTF FVGs are
+    #     handled at build time by close-through inversion). Catches the case
+    #     where a level was wicked overnight then price retraced back inside —
+    #     liquidity was taken at the wick; the level is no longer fresh.
+    sess_open_ts = sess_bars.index[0]
     sess_open = float(sess_bars.iloc[0]["open"])
-    # Carry the SweepLevel object so we can record level price + formed_at on the trade.
-    high_levels = [L for L in sweep_levels if L.side == "resistance" and L.price > sess_open]
-    low_levels = [L for L in sweep_levels if L.side == "support" and L.price < sess_open]
+
+    def _available(L):
+        if L.side == "resistance" and L.price <= sess_open:
+            return False
+        if L.side == "support" and L.price >= sess_open:
+            return False
+        if level_swept_pre_rth(L, pre_and_session_bars, sess_open_ts):
+            return False
+        return True
+
+    high_levels = [L for L in sweep_levels if L.side == "resistance" and _available(L)]
+    low_levels = [L for L in sweep_levels if L.side == "support" and _available(L)]
 
     # Per-level lifecycle: each level can be swept once per session (first-touch only).
     # Sweep = ANY first-touch (wick or close-through — same to us). The inversion

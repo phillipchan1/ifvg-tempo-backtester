@@ -60,7 +60,9 @@ class _ActiveSetup:
     swept_level_name: str
     swept_level_price: float
     swept_level_formed_at: Optional[pd.Timestamp]
-    target: FVG
+    # v004: target gap is no longer frozen at sweep time. Each bar inside the
+    # inversion window re-evaluates eligibility; the target is whichever gap
+    # is "most recent eligible" when an inversion close-through fires.
 
 
 def _bias_allows(direction: str, price: float, pd_mid: float) -> bool:
@@ -76,14 +78,18 @@ def _select_target_gap(
     sweep_ts: pd.Timestamp,
     bars: pd.DataFrame,
 ) -> Optional[FVG]:
-    """Apply R07 selection. Proximity, RTH window, and inversion-not-fired-yet
-    already enforced at eligibility time.
+    """Apply R07 selection. Proximity, RTH window, size band, and
+    inversion-not-fired-yet are enforced at eligibility time.
 
-    v002 selection: always pick the most recent eligible gap (closest to the sweep
-    in time), as long as 1 ≤ n ≤ MAX_GAPS_BETWEEN. Skip otherwise.
+    v004 selection: ALWAYS pick the most recent eligible gap. No max_gaps cap.
+
+    Under v004's per-bar re-selection, "most recent" by definition picks the
+    freshest context — the post-sweep gap when one exists, the latest pre-sweep
+    gap otherwise. The v002/v003 "skip if >max_gaps in the zone" rule conflicts
+    with this: it caused 03-24 to skip the structurally-correct 09:41 gap
+    because two older pre-sweep gaps were still in the proximity window.
     """
-    n = len(candidates)
-    if n == 0 or n > MAX_GAPS_BETWEEN:
+    if not candidates:
         return None
     return max(candidates, key=lambda g: g.formed_at)
 
@@ -242,6 +248,11 @@ def run_session(
 
     for idx, (ts, bar) in enumerate(sess_bars.iterrows()):
         # 1) Detect sweeps THIS bar — first-touch only, no wick/close distinction.
+        #
+        # v004: register the active sweep without requiring a target at sweep time.
+        # The target gap is re-evaluated each bar in the inversion window — so a
+        # post-sweep gap (formed during the reversal itself) can become the target
+        # if it's the most-recent eligible at trigger time.
         for L in high_levels:
             lvl = float(L.price)
             if level_state[L.name] != "fresh" or active["short"] is not None:
@@ -252,13 +263,9 @@ def run_session(
             # bias still required: shorts only above prior-day mid
             if not _bias_allows("short", bar["close"], pd_mid):
                 continue
-            cands = _eligible_gaps_for_direction(
-                "short", all_fvgs, bar["close"], lvl, pre_and_session_bars, ts
-            )
-            target = _select_target_gap(cands, lvl, ts, pre_and_session_bars)
-            if target is not None and trades_this_session["short"] < MAX_TRADES_PER_SESSION_PER_DIR:
+            if trades_this_session["short"] < MAX_TRADES_PER_SESSION_PER_DIR:
                 active["short"] = _ActiveSetup(
-                    "short", ts, idx, L.name, lvl, L.formed_at, target,
+                    "short", ts, idx, L.name, lvl, L.formed_at,
                 )
 
         for L in low_levels:
@@ -270,16 +277,13 @@ def run_session(
             level_state[L.name] = "swept"
             if not _bias_allows("long", bar["close"], pd_mid):
                 continue
-            cands = _eligible_gaps_for_direction(
-                "long", all_fvgs, bar["close"], lvl, pre_and_session_bars, ts
-            )
-            target = _select_target_gap(cands, lvl, ts, pre_and_session_bars)
-            if target is not None and trades_this_session["long"] < MAX_TRADES_PER_SESSION_PER_DIR:
+            if trades_this_session["long"] < MAX_TRADES_PER_SESSION_PER_DIR:
                 active["long"] = _ActiveSetup(
-                    "long", ts, idx, L.name, lvl, L.formed_at, target,
+                    "long", ts, idx, L.name, lvl, L.formed_at,
                 )
 
-        # 2) Check inversion trigger for each active setup (skip the sweep bar itself)
+        # 2) Check inversion trigger for each active setup (skip the sweep bar itself).
+        # v004: re-select the target gap as of THIS bar (post-sweep gaps eligible).
         for direction in ("short", "long"):
             setup = active[direction]
             if setup is None or ts == setup.sweep_ts:
@@ -290,7 +294,19 @@ def run_session(
                 active[direction] = None
                 continue
 
-            tg = setup.target
+            # v004: re-evaluate eligible target gap at this bar (not frozen at sweep).
+            # Use bar.open (pre-trigger state) for the price-based eligibility filter,
+            # so a gap that's about to be inverted by this bar's close isn't filtered
+            # out at the exact moment we want to fire.
+            cands = _eligible_gaps_for_direction(
+                direction, all_fvgs, float(bar["open"]), setup.swept_level_price,
+                pre_and_session_bars, ts,
+            )
+            tg = _select_target_gap(cands, setup.swept_level_price, ts, pre_and_session_bars)
+            if tg is None:
+                continue  # no eligible target this bar; keep watching
+
+            # Trigger uses bar.close (the actual close-through event).
             triggered = (
                 bar["close"] < tg.low if direction == "short" else bar["close"] > tg.high
             )

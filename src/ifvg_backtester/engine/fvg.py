@@ -45,7 +45,11 @@ def fvg_inverted_before(fvg: FVG, bars: pd.DataFrame, as_of: pd.Timestamp) -> bo
     a continuation model that wants fresh untouched gaps as draws). For IFVG we
     only invalidate on prior inversion.
     """
-    later = bars[(bars.index > fvg.formed_at) & (bars.index <= as_of)]
+    # Strict less-than: a bar whose close exactly == `as_of` is the candidate
+    # trigger bar for the caller. We must not pre-mark the gap inverted by that
+    # same close — otherwise eligibility (in v004 per-bar re-selection) would
+    # reject the gap at the precise moment we want to fire the trigger.
+    later = bars[(bars.index > fvg.formed_at) & (bars.index < as_of)]
     if later.empty:
         return False
     if fvg.direction == "bullish":

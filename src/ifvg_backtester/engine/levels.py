@@ -154,6 +154,82 @@ def session_swing_high_low(
 
 
 # ----------------------------------------------------------------------------
+# Pre-RTH sweep tracking (v003) — port of fvgc-backtest's _finalize_pre_rth_sweep
+# ----------------------------------------------------------------------------
+
+# For each level group, the earliest NY clock-time we start checking for sweeps
+# (on the session date). Rule: only check bars AFTER the level has fully formed.
+#   - prev_day / nwog: formation ended yesterday's RTH close → check entire pre-RTH window
+#   - asia:            forms 19:00 prev → 02:00 today → check from 02:00 today onward
+#   - london:          forms 02:00 → 08:00 today → check from 08:00 onward
+#   - 6am:             forms 04:00 → 08:00 today → check from 08:00 onward
+#   - bsl_ssl:         derived from London window → check from 08:00 onward
+#   - overnight:       IS the overnight extreme → cannot be swept pre-RTH
+#   - htf_fvg_*:       activation tracked via close-through inversion at build time
+
+_SWEEP_CHECK_START_TIME: dict[str, Optional[dtime]] = {
+    "prev_day":   None,             # full pre-RTH window
+    "nwog":       None,             # full pre-RTH window (formed Friday close)
+    "asia":       dtime(2, 0),      # after Asia ends
+    "london":     dtime(8, 0),      # after London ends
+    "6am":        dtime(8, 0),      # after the 6am window closes
+    "bsl_ssl":    dtime(8, 0),      # London-window-derived
+}
+
+# Groups whose pre-RTH validity is always True (cannot be swept by definition
+# during their formation window).
+_NEVER_PRE_RTH_SWEPT = frozenset({"overnight"})
+
+# Groups handled by close-through inversion at HTF FVG build time — no
+# additional pre-RTH check needed.
+_HANDLED_BY_INVERSION = frozenset({"htf_fvg_15m", "htf_fvg_1H", "htf_fvg_4H", "htf_fvg_Daily"})
+
+
+def level_swept_pre_rth(
+    level: SweepLevel,
+    bars_1m: pd.DataFrame,
+    sess_open_ts: pd.Timestamp,
+) -> bool:
+    """Has this level been wicked between its formation-end and RTH open?
+
+    Wick-touch semantics (matches fvgc-backtest):
+      resistance: any bar's high >= level.price
+      support:    any bar's low  <= level.price
+
+    Window starts at the level's group-specific check-start time on the
+    session date and ends at `sess_open_ts` (exclusive). For prev_day/nwog
+    the window starts at the earliest available bar (formation was earlier).
+
+    Returns True if the level was swept pre-RTH (filter it OUT of the
+    available pool). Returns False if it's still fresh at NY open.
+    """
+    if level.group in _NEVER_PRE_RTH_SWEPT:
+        return False
+    if level.group in _HANDLED_BY_INVERSION:
+        return False  # close-through inversion handled at build time
+
+    if level.group in _SWEEP_CHECK_START_TIME:
+        start_time = _SWEEP_CHECK_START_TIME[level.group]
+        if start_time is None:
+            check_start = bars_1m.index[0]  # entire pre-RTH window
+        else:
+            check_start = pd.Timestamp(
+                f"{sess_open_ts.date()} {start_time.strftime('%H:%M')}",
+                tz="America/New_York",
+            )
+    else:
+        # Unknown group — be conservative and don't filter.
+        return False
+
+    window = bars_1m[(bars_1m.index >= check_start) & (bars_1m.index < sess_open_ts)]
+    if window.empty:
+        return False
+    if level.side == "resistance":
+        return bool((window["high"] >= level.price).any())
+    return bool((window["low"] <= level.price).any())
+
+
+# ----------------------------------------------------------------------------
 # Session levels (one call per session date)
 # ----------------------------------------------------------------------------
 

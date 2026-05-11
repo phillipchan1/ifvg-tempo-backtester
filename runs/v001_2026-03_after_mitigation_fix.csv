@@ -1,0 +1,2 @@
+session_date,direction,swept_level_name,swept_level_price,sweep_ts,target_gap_high,target_gap_low,target_gap_size,target_gap_formed_at,bars_to_inversion,entry_ts,entry_price,stop_price,tp_price,risk_points,exit_ts,exit_price,outcome,pnl_points,r_multiple
+2026-03-12 00:00:00-04:00,long,PDL,24695.5,2026-03-12 09:47:00-04:00,24726.5,24708.5,18.0,2026-03-12 09:47:00-04:00,2,2026-03-12 09:49:00-04:00,24736.5,24703.5,24769.5,33.0,2026-03-12 09:52:00-04:00,24703.5,loss,-33.0,-1.0
